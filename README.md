@@ -18,6 +18,23 @@ It currently supports the following enhancements:
 <img src="https://img.shields.io/badge/Upscale-984E7D?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGhlaWdodD0iMjRweCIgdmlld0JveD0iMCAtOTYwIDk2MCA5NjAiIHdpZHRoPSIyNHB4IiBmaWxsPSIjZTNlM2UzIj48cGF0aCBkPSJNMTIwLTEyMHYtMzIwaDgwdjE4NGw1MDQtNTA0SDUyMHYtODBoMzIwdjMyMGgtODB2LTE4NEwyNTYtMjAwaDE4NHY4MEgxMjBaIi8+PC9zdmc+"/>
 </p>
 
+## 🍴 About this fork
+
+> This is [ClickCalickClick's](https://github.com/ClickCalickClick) fork of [vegidio/open-photo-ai](https://github.com/vegidio/open-photo-ai). Everything below this section is the upstream README. The fork exists for one purpose – adding GPU acceleration for AMD and Intel machines – and the intent is to contribute it back upstream, not to maintain a separate product.
+
+**Why it was needed.** Open Photo AI accelerates inference with NVIDIA's CUDA/TensorRT and Apple's CoreML. On any other GPU – every AMD Radeon, every Intel Arc or Iris, including the integrated GPUs in most laptops and mini PCs – the app silently runs on the CPU, where a single 24-megapixel denoise can take the better part of an hour. The upstream maintainer has said he wants AMD support ([#46](https://github.com/vegidio/open-photo-ai/issues/46)) but has no AMD hardware to develop or test on. I have two: a Minisforum V3 SE with a Radeon 680M, and a second machine with a Radeon 780M on the way.
+
+**Why a fork rather than just a branch.** The app does not bundle its inference runtime. It downloads ONNX Runtime and the GPU provider libraries at first launch, from archives published as GitHub *releases of the repository it was built from*, each pinned by SHA-256. Adding a new provider therefore means publishing a new archive somewhere the app can fetch it – and only a repository I control can carry that release until upstream publishes its own. That is what the `webgpu/*` releases on this fork are: the official ONNX Runtime WebGPU plugin, taken unmodified from Microsoft's PyPI wheels and repackaged into the app's archive layout (see `scripts/package_webgpu.py` on the branch). Nothing else in them is mine.
+
+**What the change is.** A new **WebGPU** processor, built on ONNX Runtime's WebGPU plugin execution provider, which runs on Vulkan (Linux), Direct3D 12 (Windows) and Metal (macOS) – so one code path covers AMD, Intel, and anything else with a current graphics driver, with a ~10 MB download instead of the multi-gigabyte ROCm or CUDA stacks. On the 680M it makes denoise and sharpen 6–7× faster than the CPU and upscaling 2.5–3× faster, with output identical to the CPU result for the fp32 models.
+
+**Where things are.**
+- Branch [`webgpu-ep`](https://github.com/ClickCalickClick/open-photo-ai/tree/webgpu-ep) – the provider, its tests, and the upstream-facing README changes. This is what will become the pull request.
+- Release [`webgpu/0.1.0`](https://github.com/ClickCalickClick/open-photo-ai/releases/tag/webgpu%2F0.1.0) – the plugin archives the branch pins (0.1.0 is the plugin release built against the ONNX Runtime 1.26 plugin API the app ships). `webgpu/0.3.0` is an earlier attempt, superseded: that plugin targets the 1.29 API and the app's runtime rejects it.
+- Known limitations, documented in the branch README: the fp16 ("SD" tier) models return wrong images from the current plugin and fall back to the CPU; the *Jaipur* colorizer runs its two largest layers on the CPU to work around a driver hang on AMD/Linux. Both are being reported upstream to ONNX Runtime.
+
+**Status.** Working and under test on the 680M; to be validated on the 780M before a pull request is opened against upstream.
+
 ## 💡 Motivation
 
 There are many excellent AI-based photo editing tools available today, ranging from open-source solutions – often powerful but complex to set up and use, such as ComfyUI – to commercial products that favor ease of use over deep customization, like those from Topaz Labs.
