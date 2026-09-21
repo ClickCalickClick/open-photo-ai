@@ -15,7 +15,7 @@ const releaseUrl = "https://github.com/vegidio/open-photo-ai/releases/download/%
 // DEV ONLY - DROP BEFORE PR: the webgpu archives are published on the fork until upstream publishes its own.
 func releaseUrlFor(prefix string) string {
 	if prefix == "webgpu" {
-		return "http://127.0.0.1:8765/%s/%s"
+		return "https://github.com/ClickCalickClick/open-photo-ai/releases/download/%s/%s"
 	}
 
 	return releaseUrl
