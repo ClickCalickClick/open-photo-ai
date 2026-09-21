@@ -31,6 +31,7 @@ It currently supports the following enhancements:
 **Where things are.**
 - Branch [`webgpu-ep`](https://github.com/ClickCalickClick/open-photo-ai/tree/webgpu-ep) – the provider, its tests, and the upstream-facing README changes. This is what will become the pull request.
 - Release [`webgpu/0.1.0`](https://github.com/ClickCalickClick/open-photo-ai/releases/tag/webgpu%2F0.1.0) – the plugin archives the branch pins (0.1.0 is the plugin release built against the ONNX Runtime 1.26 plugin API the app ships). `webgpu/0.3.0` is an earlier attempt, superseded: that plugin targets the 1.29 API and the app's runtime rejects it.
+- [`docs/fork/ort-webgpu-bug-reports.md`](docs/fork/ort-webgpu-bug-reports.md) – draft bug reports for the three ONNX Runtime plugin defects the branch works around (a GPU hang, wrong fp16 results, a shader that will not compile), with reproductions.
 - Known limitations, documented in the branch README: the fp16 ("SD" tier) models return wrong images from the current plugin and fall back to the CPU; the *Jaipur* colorizer runs its two largest layers on the CPU to work around a driver hang on AMD/Linux. Both are being reported upstream to ONNX Runtime.
 
 **Status.** Working and under test on the 680M; to be validated on the 780M before a pull request is opened against upstream.
