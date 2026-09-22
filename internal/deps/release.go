@@ -12,6 +12,16 @@ import (
 // the generator that pins their hashes reads the same releases through the GitHub API.
 const releaseUrl = "https://github.com/vegidio/open-photo-ai/releases/download/%s/%s"
 
+// DEV ONLY - DROP BEFORE THE UPSTREAM PR (it is the last commit on the branch): the WebGPU plugin archives are
+// published on the fork until upstream publishes its own.
+func releaseUrlFor(prefix string) string {
+	if prefix == "webgpu" {
+		return "https://github.com/ClickCalickClick/open-photo-ai/releases/download/%s/%s"
+	}
+
+	return releaseUrl
+}
+
 // ReleaseDependency describes an archive published as a release asset, for the platform this binary
 // was built for. It is the second of the package's two constructors - ModelDependency covers the
 // files fetched per model, this one covers the trees fetched per release.
@@ -38,7 +48,7 @@ func ReleaseDependency(name, prefix, destination string) (Dependency, error) {
 		Destination: destination,
 		Exclusive:   true,
 		Sources: []Source{{
-			URL:    fmt.Sprintf(releaseUrl, pinned.Tag, pinned.Name),
+			URL:    fmt.Sprintf(releaseUrlFor(prefix), pinned.Tag, pinned.Name),
 			Sha256: pinned.Hash,
 			Size:   pinned.Size,
 		}},
