@@ -12,7 +12,8 @@ import (
 // the generator that pins their hashes reads the same releases through the GitHub API.
 const releaseUrl = "https://github.com/vegidio/open-photo-ai/releases/download/%s/%s"
 
-// DEV ONLY - DROP BEFORE PR: the webgpu archives are published on the fork until upstream publishes its own.
+// DEV ONLY - DROP BEFORE THE UPSTREAM PR (it is the last commit on the branch): the WebGPU plugin archives are
+// published on the fork until upstream publishes its own.
 func releaseUrlFor(prefix string) string {
 	if prefix == "webgpu" {
 		return "https://github.com/ClickCalickClick/open-photo-ai/releases/download/%s/%s"

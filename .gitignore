@@ -1,3 +1,6 @@
 *.iml
 .idea/
 /build/
+# Binaries left by building the tools in place with `go build .`
+/cmd/cli/cli
+/cmd/perf/perf
