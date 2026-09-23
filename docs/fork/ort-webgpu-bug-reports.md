@@ -1,12 +1,12 @@
 # Draft bug reports for microsoft/onnxruntime (WebGPU plugin EP)
 
-Two defects in the ONNX Runtime WebGPU plugin execution provider found while adding the WebGPU processor to Open
+Defects in the ONNX Runtime WebGPU plugin execution provider found while adding the WebGPU processor to Open
 Photo AI (branch `webgpu-ep`). The app works around both; these reports are what would let the workarounds go. Not
 yet filed.
 
 Workarounds in the branch: `models/colorization/jaipur` pins the two affected convolutions to the CPU via
 `forceCpuNodeNames`; `internal/utils/webgpu.go` routes every fp16 graph away from the provider; `models/lightadjustment/paris`
-pins its `Pow` node to the CPU (see report 3).
+pins its `Pow` node to the CPU (see report 3); `models/colorbalance/saopaulo` pins six convolutions (see report 4).
 
 ---
 
@@ -90,3 +90,17 @@ Status Message: Failed to create a WebGPU compute pipeline: [Invalid ShaderModul
 
 Forcing the node to the CPU (`forceCpuNodeNames`) works. Plugin 0.1.0 + ORT 1.26.0, RADV as above. A minimal
 synthetic repro (Pow of a [1,3,H,W] float input by a [1,3,1,1] float input) is the next step; not yet reduced.
+
+---
+
+## 4. Wrong results: small Conv with input channels not a multiple of 4
+
+**Title:** [WebGPU EP] 3x3 Conv with 9 or 18 input channels returns wrong values (Linux/Vulkan, RADV)
+
+Same environment. `cb_saopaulo_fp32.onnx` (same model zoo, input 1x3x656x656) differs from the CPU EP by mean 0.076 /
+max 0.79 on a [0,1] output. Bisecting with `forceCpuNodeNames`: pinning all 185 Conv nodes to the CPU makes the result
+exact; pinning only the six whose weights are `[18, 9, 3, 3]` and `[8, 18, 3, 3]` (in the `/grid/enc_res.0.0/block/`
+subgraph) is also exact. The network's first Conv, `[24, 3, 3, 3]`, is not affected, nor are the output convs with 3
+*output* channels, so the trigger appears to be input channels % 4 != 0 part-way through a graph - the same
+unvectorised path implicated in report 1. A minimal synthetic repro (Conv 9->18->8 channels, 3x3, pad 1, on a real
+intermediate) is the next step; not yet reduced.
