@@ -75,3 +75,5 @@ require (
 
 // Need to keep this here because github.com/cockroachdb/errors is pulling a really old version of this lib
 exclude google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1
+
+replace github.com/gen2brain/jpegxl => github.com/ClickCalickClick/jpegxl v0.6.1-0.20260923041847-cc110b32f584

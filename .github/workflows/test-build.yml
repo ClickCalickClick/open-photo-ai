@@ -1,0 +1,98 @@
+# TEST BUILDS ONLY - lives on the fork's webgpu-test-build branch, never in an upstream PR.
+#
+# Builds Linux amd64 and Windows amd64 with upstream's own build steps and attaches them to a *draft* pre-release, so
+# nothing is public until the release is reviewed and published by hand. No telemetry: the OTEL/Aptabase placeholders
+# are left unreplaced, which the app treats as "not configured".
+name: Test build
+
+# Runs on a push to this branch (a manual trigger would need the file on the fork's default branch). Bump VERSION for
+# each new test build; it uses semver build metadata only, so the app's update check treats it as the release it is
+# based on instead of an older pre-release of it.
+on:
+  push:
+    branches: [webgpu-test-build]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  VERSION: 26.9.4+webgpu.1
+
+jobs:
+  build-linux-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+          pnpm install -g @go-task/cli
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.98
+      - name: Build Linux binaries
+        run: |
+          node scripts/replace.ts shared/constants.go "<version>" "$VERSION"
+          task package archs=amd64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-linux-amd64
+          path: build/*.zip
+
+  build-windows-amd64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+      - name: Install dependencies
+        run: pnpm install -g @go-task/cli
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.98
+      - name: Build Windows binaries
+        shell: bash
+        run: |
+          node scripts/replace.ts shared/constants.go "<version>" "$VERSION"
+          task package archs=amd64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-windows-amd64
+          path: build/*.zip
+
+  draft-release:
+    runs-on: ubuntu-latest
+    needs: [build-linux-amd64, build-windows-amd64]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: binaries
+          merge-multiple: true
+      - name: Create draft pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="test-${VERSION//+/-}"
+          # A re-run for the same version replaces the earlier draft instead of failing on the existing tag name.
+          gh release delete "$tag" --yes 2>/dev/null || true
+          sed "s/{{VERSION}}/$VERSION/g; s/{{COMMIT}}/$GITHUB_SHA/g" .github/test-build-notes.md > notes.md
+          (cd binaries && sha256sum *.zip) >> notes.md
+          echo '```' >> notes.md
+          gh release create "$tag" binaries/*.zip --draft --prerelease --target "$GITHUB_SHA" \
+            --title "Test build $VERSION (WebGPU for AMD/Intel GPUs)" --notes-file notes.md
