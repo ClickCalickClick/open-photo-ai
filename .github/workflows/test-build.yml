@@ -14,7 +14,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  VERSION: 26.9.4+webgpu.1
+  VERSION: 26.9.4+webgpu.2
 
 jobs:
   build-linux-amd64:
