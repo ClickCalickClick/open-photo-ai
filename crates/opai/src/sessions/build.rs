@@ -44,7 +44,7 @@ use ort::session::builder::SessionBuilder;
 
 use crate::deps::manifest;
 use crate::error::{InitError, SessionError};
-use crate::models::ArtifactId;
+use crate::models::{ArtifactId, Precision};
 use crate::providers::Accelerator;
 use crate::providers::options::{CachePaths, ProviderOptions, SessionPlan, SessionSettings};
 use crate::providers::profile::{DISABLED_OPTIMIZER_SEPARATOR, ExecutionMode};
@@ -141,7 +141,15 @@ fn open(artifact: &ArtifactId, plan: &SessionPlan, model: &Path) -> Result<Sessi
         .map_err(|err| failed(err.into()))?;
 
     if let Some(webgpu) = plan.providers.iter().find(|options| options.provider == Accelerator::WebGpu) {
-        builder = attach_webgpu(builder, &webgpu.options).map_err(failed)?;
+        match webgpu_refusal(artifact, webgpu) {
+            // Alone in the chain, WebGPU's refusal is the build's: failing it is what sends the graph to the CPU as a
+            // reported downgrade rather than a CPU run filed as a WebGPU one.
+            Some(reason) if dispatches.is_empty() => return Err(failed(ort::Error::new(reason))),
+            // Behind a vendor provider, that provider runs the graph, and an FP16 model on an NVIDIA machine must not
+            // lose CUDA over a provider it was never going to reach.
+            Some(reason) => tracing::debug!(%reason, "not attaching WebGPU behind the providers above it"),
+            None => builder = attach_webgpu(builder, &webgpu.options).map_err(failed)?,
+        }
     }
     builder = BuilderSettings::of(&plan.settings).apply(builder).map_err(failed)?;
 
@@ -162,6 +170,23 @@ fn dispatch(options: &ProviderOptions) -> ExecutionProviderDispatch {
     };
 
     dispatch.error_on_failure()
+}
+
+/// Why the WebGPU provider must not be handed `artifact`, or `None` where it may.
+///
+/// A refusal fails the build, and the fallback then moves the graph to the CPU as a reported downgrade — the same path
+/// a provider that cannot open a model takes. Refusing here rather than leaving WebGPU out of the plan is what keeps
+/// the session filed under the provider that actually runs it.
+fn webgpu_refusal(artifact: &ArtifactId, webgpu: &ProviderOptions) -> Option<String> {
+    // The FP16 graphs come back wrong from the plugin rather than failing: against the FP32 graph on the CPU,
+    // Petersburg differs on every pixel, Stockholm on 81% of them, and Delhi and Mumbai on nearly all, where the CPU's
+    // own FP16 run stays within one level. Kyoto survives, but no FP16 graph is trusted until the plugin accumulates
+    // in FP32 as the CPU provider does. Measured on a Radeon 780M under RADV.
+    if artifact.precision() == Some(Precision::Fp16) {
+        return Some(format!("the WebGPU provider only runs FP32 graphs; {artifact} stays on the CPU"));
+    }
+
+    webgpu.declined.then(|| format!("{artifact} declines the WebGPU provider"))
 }
 
 /// Attaches the WebGPU plugin's devices to `builder`, configured with `options`.
@@ -359,7 +384,7 @@ mod tests {
 
     /// The options for one accelerator, without going through the whole resolution.
     fn resolved_for(provider: Accelerator) -> ProviderOptions {
-        ProviderOptions { provider, options: BTreeMap::new() }
+        ProviderOptions { provider, options: BTreeMap::new(), declined: false }
     }
 
     #[test]
